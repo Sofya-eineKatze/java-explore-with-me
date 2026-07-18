@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.practicum.dto.EndpointHitDto;
 import ru.practicum.dto.ViewStatsDto;
 import ru.practicum.mapper.HitMapper;
+import ru.practicum.projection.ViewStatsProjection;
 import ru.practicum.repository.HitRepository;
 
 import java.time.LocalDateTime;
@@ -34,18 +35,18 @@ public class StatsServiceImpl implements StatsService {
             throw new IllegalArgumentException("Start date must be before end date");
         }
 
-        List<Object[]> results;
+        List<ViewStatsProjection> projections;
         if (Boolean.TRUE.equals(unique)) {
-            results = hitRepository.findUniqueStats(start, end, uris);
+            projections = hitRepository.findUniqueStats(start, end, uris);
         } else {
-            results = hitRepository.findStats(start, end, uris);
+            projections = hitRepository.findStats(start, end, uris);
         }
 
-        return results.stream()
-                .map(row -> ViewStatsDto.builder()
-                        .app((String) row[0])
-                        .uri((String) row[1])
-                        .hits((Long) row[2])
+        return projections.stream()
+                .map(p -> ViewStatsDto.builder()
+                        .app(p.getApp())
+                        .uri(p.getUri())
+                        .hits(p.getHits())
                         .build())
                 .collect(Collectors.toList());
     }
