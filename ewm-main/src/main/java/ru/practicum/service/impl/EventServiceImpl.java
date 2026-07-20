@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.practicum.Constants;
 import ru.practicum.client.StatsClient;
 import ru.practicum.dto.*;
+import ru.practicum.exception.ConflictException;
 import ru.practicum.model.Category;
 import ru.practicum.model.Event;
 import ru.practicum.model.User;
@@ -49,22 +50,12 @@ public class EventServiceImpl implements EventService {
                                                   int size,
                                                   HttpServletRequest request) {
 
-        // Обработка сортировки
-        Sort sortBy;
-        if (Constants.SORT_VIEWS.equalsIgnoreCase(sort)) {
-            sortBy = Sort.by("views").descending();
-        } else if (Constants.SORT_EVENT_DATE.equalsIgnoreCase(sort)) {
-            sortBy = Sort.by("eventDate").ascending();
-        } else {
-            sortBy = Sort.unsorted();
-        }
+        Pageable pageable = PageRequest.of(from / size, size);
 
-        Pageable pageable = PageRequest.of(from / size, size, sortBy);
-
-        // Значения по умолчанию для дат
         if (rangeStart == null) {
             rangeStart = LocalDateTime.now();
         }
+
         if (rangeEnd == null) {
             rangeEnd = LocalDateTime.now().plusYears(100);
         }
@@ -83,12 +74,14 @@ public class EventServiceImpl implements EventService {
                 pageable
         );
 
-        statsClient.saveHit(
-                Constants.APP_NAME,
-                "/events",
-                request.getRemoteAddr(),
-                LocalDateTime.now()
-        );
+        if (request != null) {
+            statsClient.saveHit(
+                    Constants.APP_NAME,
+                    "/events",
+                    request.getRemoteAddr(),
+                    LocalDateTime.now()
+            );
+        }
 
         return events.stream()
                 .map(this::toShortDto)
@@ -102,7 +95,14 @@ public class EventServiceImpl implements EventService {
             throw new EntityNotFoundException("Event not found or not published");
         }
 
-        statsClient.saveHit(Constants.APP_NAME, "/events/" + eventId, request.getRemoteAddr(), LocalDateTime.now());
+        if (request != null) {
+            statsClient.saveHit(
+                    Constants.APP_NAME,
+                    "/events/" + eventId,
+                    request.getRemoteAddr(),
+                    LocalDateTime.now()
+            );
+        }
 
         event.setViews(event.getViews() == null ? 1 : event.getViews() + 1);
         eventRepository.save(event);
@@ -367,7 +367,7 @@ public class EventServiceImpl implements EventService {
         switch (updateRequest.getStateAction()) {
             case Constants.STATE_ACTION_PUBLISH:
                 if (!Constants.EVENT_STATE_PENDING.equals(event.getState())) {
-                    throw new IllegalArgumentException("Event must be in PENDING state to publish");
+                    throw new ConflictException("Event must be in PENDING state to publish");
                 }
                 event.setState(Constants.EVENT_STATE_PUBLISHED);
                 event.setPublishedOn(LocalDateTime.now());
@@ -375,7 +375,7 @@ public class EventServiceImpl implements EventService {
 
             case Constants.STATE_ACTION_REJECT:
                 if (Constants.EVENT_STATE_PUBLISHED.equals(event.getState())) {
-                    throw new IllegalArgumentException("Cannot reject published event");
+                    throw new ConflictException("Cannot reject published event");
                 }
                 event.setState(Constants.EVENT_STATE_REJECTED);
                 break;

@@ -18,6 +18,17 @@ import java.time.LocalDateTime;
 @Slf4j
 public class ErrorHandler {
 
+    @ExceptionHandler(ConflictException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ErrorResponse handleConflict(ConflictException e) {
+        log.error("Conflict: {}", e.getMessage());
+        return new ErrorResponse(
+                "CONFLICT",
+                e.getMessage(),
+                LocalDateTime.now().toString()
+        );
+    }
+
     @ExceptionHandler(MissingServletRequestParameterException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorResponse handleMissingServletRequestParameter(MissingServletRequestParameterException e) {
