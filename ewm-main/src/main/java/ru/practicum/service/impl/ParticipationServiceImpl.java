@@ -5,9 +5,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ru.practicum.dto.ParticipationRequestDto;
+import ru.practicum.Constants;
 import ru.practicum.dto.EventRequestStatusUpdateRequest;
 import ru.practicum.dto.EventRequestStatusUpdateResult;
+import ru.practicum.dto.ParticipationRequestDto;
+import ru.practicum.exception.ConflictException;
 import ru.practicum.model.Event;
 import ru.practicum.model.ParticipationRequest;
 import ru.practicum.model.User;
@@ -15,7 +17,6 @@ import ru.practicum.repository.EventRepository;
 import ru.practicum.repository.ParticipationRequestRepository;
 import ru.practicum.repository.UserRepository;
 import ru.practicum.service.ParticipationService;
-import ru.practicum.Constants;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -50,28 +51,28 @@ public class ParticipationServiceImpl implements ParticipationService {
         Event event = getEventEntity(eventId);
 
         if (event.getInitiator().getId().equals(userId)) {
-            throw new IllegalArgumentException("You cannot request participation in your own event");
+            throw new ConflictException("You cannot request participation in your own event");
         }
 
         if (!Constants.EVENT_STATE_PUBLISHED.equals(event.getState())) {
-            throw new IllegalArgumentException("Event is not published");
+            throw new ConflictException("Event is not published");
         }
 
         if (requestRepository.existsByRequesterIdAndEventIdAndStatusNot(userId, eventId, Constants.REQUEST_STATUS_CANCELED)) {
-            throw new IllegalArgumentException("You already have a pending request for this event");
+            throw new ConflictException("You already have a pending request for this event");
         }
 
         Long confirmedCount = requestRepository.countConfirmedRequestsByEventId(eventId);
         Integer participantLimit = event.getParticipantLimit() != null ? event.getParticipantLimit() : 0;
 
         if (participantLimit > 0 && confirmedCount >= participantLimit) {
-            throw new IllegalArgumentException("Participant limit is reached");
+            throw new ConflictException("Participant limit is reached");
         }
 
         ParticipationRequest request = ParticipationRequest.builder()
                 .requester(user)
                 .event(event)
-                .created(LocalDateTime.now())
+                .created(LocalDateTime.now().withNano((LocalDateTime.now().getNano() / 1000) * 1000))
                 .status(Constants.REQUEST_STATUS_PENDING)
                 .build();
 
@@ -84,6 +85,7 @@ public class ParticipationServiceImpl implements ParticipationService {
         }
 
         request = requestRepository.save(request);
+        log.info("Added request with id: {}", request.getId());
         return toDto(request);
     }
 

@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.practicum.Constants;
@@ -37,6 +38,8 @@ public class EventServiceImpl implements EventService {
     private final ParticipationRequestRepository requestRepository;
     private final StatsClient statsClient;
 
+    // ==================== ПУБЛИЧНЫЕ МЕТОДЫ ====================
+
     @Override
     public List<EventShortDto> getPublishedEvents(String text,
                                                   List<Long> categories,
@@ -49,7 +52,20 @@ public class EventServiceImpl implements EventService {
                                                   int size,
                                                   HttpServletRequest request) {
 
-        Pageable pageable = PageRequest.of(from / size, size);
+        if (size <= 0) {
+            throw new IllegalArgumentException("size must be greater than 0");
+        }
+
+        Sort sortBy;
+        if (Constants.SORT_VIEWS.equalsIgnoreCase(sort)) {
+            sortBy = Sort.by("views").descending();
+        } else if (Constants.SORT_EVENT_DATE.equalsIgnoreCase(sort)) {
+            sortBy = Sort.by("eventDate").ascending();
+        } else {
+            sortBy = Sort.unsorted();
+        }
+
+        Pageable pageable = PageRequest.of(from / size, size, sortBy);
 
         if (rangeStart == null) {
             rangeStart = LocalDateTime.now();
@@ -109,6 +125,8 @@ public class EventServiceImpl implements EventService {
         return toFullDto(event);
     }
 
+    // ==================== ПРИВАТНЫЕ МЕТОДЫ ====================
+
     @Override
     @Transactional
     public EventFullDto addEvent(Long userId, NewEventDto newEventDto) {
@@ -165,6 +183,10 @@ public class EventServiceImpl implements EventService {
             throw new IllegalArgumentException("User ID must not be null");
         }
 
+        if (size <= 0) {
+            throw new IllegalArgumentException("size must be greater than 0");
+        }
+
         getUserEntity(userId);
         Pageable pageable = PageRequest.of(from / size, size);
         List<Event> events = eventRepository.findByInitiatorId(userId, pageable);
@@ -199,11 +221,10 @@ public class EventServiceImpl implements EventService {
         }
 
         if (Constants.EVENT_STATE_PUBLISHED.equals(event.getState())) {
-            throw new IllegalArgumentException(
+            throw new ConflictException(
                     "Cannot update published event");
         }
 
-        // Обновление полей
         if (updateRequest.getAnnotation() != null) {
             event.setAnnotation(updateRequest.getAnnotation());
         }
@@ -286,9 +307,21 @@ public class EventServiceImpl implements EventService {
         return toFullDto(event);
     }
 
+    // ==================== АДМИНИСТРАТИВНЫЕ МЕТОДЫ ====================
+
     @Override
-    public List<EventFullDto> getEventsByAdmin(List<Long> users, List<String> states, List<Long> categories,
-                                               LocalDateTime rangeStart, LocalDateTime rangeEnd, int from, int size) {
+    public List<EventFullDto> getEventsByAdmin(List<Long> users,
+                                               List<String> states,
+                                               List<Long> categories,
+                                               LocalDateTime rangeStart,
+                                               LocalDateTime rangeEnd,
+                                               int from,
+                                               int size) {
+
+        if (size <= 0) {
+            throw new IllegalArgumentException("size must be greater than 0");
+        }
+
         Pageable pageable = PageRequest.of(from / size, size);
 
         if (rangeStart == null) {
@@ -314,7 +347,7 @@ public class EventServiceImpl implements EventService {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new EntityNotFoundException("Event not found"));
 
-        // Обновление полей (админ может менять всё)
+        // Обновление полей
         if (updateRequest.getAnnotation() != null) {
             event.setAnnotation(updateRequest.getAnnotation());
         }
@@ -328,8 +361,8 @@ public class EventServiceImpl implements EventService {
         }
 
         if (updateRequest.getEventDate() != null) {
-            if (updateRequest.getEventDate().isBefore(LocalDateTime.now().plusHours(Constants.MIN_HOURS_BEFORE_EVENT))) {
-                throw new IllegalArgumentException("Event date must be at least " + Constants.MIN_HOURS_BEFORE_EVENT + " hours later");
+            if (updateRequest.getEventDate().isBefore(LocalDateTime.now().plusHours(1))) {
+                throw new IllegalArgumentException("Event date must be at least 1 hour later");
             }
             event.setEventDate(updateRequest.getEventDate());
         }
@@ -358,35 +391,35 @@ public class EventServiceImpl implements EventService {
             event.setRequestModeration(updateRequest.getRequestModeration());
         }
 
-        // Обработка статуса
-        if (updateRequest.getStateAction() == null) {
-            throw new IllegalArgumentException("State action is required");
-        }
+        // Обработка статуса (только если передан stateAction)
+        if (updateRequest.getStateAction() != null) {
+            switch (updateRequest.getStateAction()) {
+                case Constants.STATE_ACTION_PUBLISH:
+                    if (!Constants.EVENT_STATE_PENDING.equals(event.getState())) {
+                        throw new ConflictException("Event must be in PENDING state to publish");
+                    }
+                    event.setState(Constants.EVENT_STATE_PUBLISHED);
+                    event.setPublishedOn(LocalDateTime.now());
+                    break;
 
-        switch (updateRequest.getStateAction()) {
-            case Constants.STATE_ACTION_PUBLISH:
-                if (!Constants.EVENT_STATE_PENDING.equals(event.getState())) {
-                    throw new ConflictException("Event must be in PENDING state to publish");
-                }
-                event.setState(Constants.EVENT_STATE_PUBLISHED);
-                event.setPublishedOn(LocalDateTime.now());
-                break;
+                case Constants.STATE_ACTION_REJECT:
+                    if (Constants.EVENT_STATE_PUBLISHED.equals(event.getState())) {
+                        throw new ConflictException("Cannot reject published event");
+                    }
+                    event.setState(Constants.EVENT_STATE_REJECTED);
+                    break;
 
-            case Constants.STATE_ACTION_REJECT:
-                if (Constants.EVENT_STATE_PUBLISHED.equals(event.getState())) {
-                    throw new ConflictException("Cannot reject published event");
-                }
-                event.setState(Constants.EVENT_STATE_REJECTED);
-                break;
-
-            default:
-                throw new IllegalArgumentException("Unknown state action: " + updateRequest.getStateAction());
+                default:
+                    throw new IllegalArgumentException("Unknown state action: " + updateRequest.getStateAction());
+            }
         }
 
         event = eventRepository.save(event);
         log.info("Moderated event with id: {}, new state: {}", eventId, event.getState());
         return toFullDto(event);
     }
+
+    // ==================== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ====================
 
     private User getUserEntity(Long userId) {
         return userRepository.findById(userId)
