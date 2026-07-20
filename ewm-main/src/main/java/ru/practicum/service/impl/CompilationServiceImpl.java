@@ -108,6 +108,7 @@ public class CompilationServiceImpl implements CompilationService {
                         .title(event.getTitle())
                         .eventDate(event.getEventDate())
                         .paid(event.getPaid())
+                        .views(event.getViews() != null ? event.getViews() : 0L)
                         .build())
                 .collect(Collectors.toList());
 
