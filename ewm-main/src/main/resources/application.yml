@@ -17,7 +17,7 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
 stats-server:
-  url: http://localhost:9090
+  url: ${STATS_SERVER_URL:http://localhost:9090}
 
 logging:
   level:
