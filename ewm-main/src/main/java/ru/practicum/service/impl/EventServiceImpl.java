@@ -38,7 +38,6 @@ public class EventServiceImpl implements EventService {
     private final ParticipationRequestRepository requestRepository;
     private final StatsClient statsClient;
 
-    // ==================== ПУБЛИЧНЫЕ МЕТОДЫ ====================
 
     @Override
     public List<EventShortDto> getPublishedEvents(String text,
@@ -54,6 +53,15 @@ public class EventServiceImpl implements EventService {
 
         if (size <= 0) {
             throw new IllegalArgumentException("size must be greater than 0");
+        }
+
+        // ОБРАБОТКА ПУСТЫХ СПИСКОВ (чтобы избежать ошибок Hibernate)
+        if (categories != null && categories.isEmpty()) {
+            categories = null;
+        }
+
+        if (text != null && text.isBlank()) {
+            text = null;
         }
 
         Sort sortBy;
@@ -80,7 +88,6 @@ public class EventServiceImpl implements EventService {
         }
 
         List<Event> events = eventRepository.findPublishedEvents(
-                text,
                 categories,
                 paid,
                 rangeStart,
@@ -125,7 +132,6 @@ public class EventServiceImpl implements EventService {
         return toFullDto(event);
     }
 
-    // ==================== ПРИВАТНЫЕ МЕТОДЫ ====================
 
     @Override
     @Transactional
@@ -307,8 +313,6 @@ public class EventServiceImpl implements EventService {
         return toFullDto(event);
     }
 
-    // ==================== АДМИНИСТРАТИВНЫЕ МЕТОДЫ ====================
-
     @Override
     public List<EventFullDto> getEventsByAdmin(List<Long> users,
                                                List<String> states,
@@ -419,7 +423,6 @@ public class EventServiceImpl implements EventService {
         return toFullDto(event);
     }
 
-    // ==================== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ====================
 
     private User getUserEntity(Long userId) {
         return userRepository.findById(userId)
