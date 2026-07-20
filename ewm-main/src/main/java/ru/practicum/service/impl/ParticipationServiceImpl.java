@@ -42,6 +42,10 @@ public class ParticipationServiceImpl implements ParticipationService {
     @Override
     @Transactional
     public ParticipationRequestDto addRequest(Long userId, Long eventId) {
+        if (eventId == null) {
+            throw new IllegalArgumentException("Event ID must not be null");
+        }
+
         User user = getUserEntity(userId);
         Event event = getEventEntity(eventId);
 

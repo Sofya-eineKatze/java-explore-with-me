@@ -78,6 +78,10 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional
     public EventFullDto addEvent(Long userId, NewEventDto newEventDto) {
+        if (userId == null) {
+            throw new IllegalArgumentException("User ID must not be null");
+        }
+
         User user = getUserEntity(userId);
         Category category = getCategoryEntity(newEventDto.getCategory());
 
@@ -109,6 +113,10 @@ public class EventServiceImpl implements EventService {
 
     @Override
     public List<EventShortDto> getUserEvents(Long userId, int from, int size) {
+        if (userId == null) {
+            throw new IllegalArgumentException("User ID must not be null");
+        }
+
         getUserEntity(userId);
         Pageable pageable = PageRequest.of(from / size, size);
         List<Event> events = eventRepository.findByInitiatorId(userId, pageable);
@@ -242,8 +250,6 @@ public class EventServiceImpl implements EventService {
         log.info("Moderated event with id: {}, new state: {}", eventId, event.getState());
         return toFullDto(event);
     }
-
-    // --- Вспомогательные методы ---
 
     private User getUserEntity(Long userId) {
         return userRepository.findById(userId)
