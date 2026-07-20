@@ -95,6 +95,11 @@ public class ParticipationServiceImpl implements ParticipationService {
         ParticipationRequest request = requestRepository.findByIdAndRequesterId(requestId, userId)
                 .orElseThrow(() -> new EntityNotFoundException("Request not found"));
 
+        // Нельзя отменить уже подтверждённую заявку
+        if (Constants.REQUEST_STATUS_CONFIRMED.equals(request.getStatus())) {
+            throw new ConflictException("Cannot cancel already confirmed request");
+        }
+
         request.setStatus(Constants.REQUEST_STATUS_CANCELED);
         request = requestRepository.save(request);
         log.info("Cancelled request with id: {}", requestId);
@@ -106,7 +111,7 @@ public class ParticipationServiceImpl implements ParticipationService {
         Event event = getEventEntity(eventId);
 
         if (!event.getInitiator().getId().equals(userId)) {
-            throw new IllegalArgumentException("You are not the initiator of this event");
+            throw new ConflictException("You are not the initiator of this event");
         }
 
         return requestRepository.findByEventId(eventId)
@@ -122,11 +127,12 @@ public class ParticipationServiceImpl implements ParticipationService {
         Event event = getEventEntity(eventId);
 
         if (!event.getInitiator().getId().equals(userId)) {
-            throw new IllegalArgumentException("You are not the initiator of this event");
+            throw new ConflictException("You are not the initiator of this event");
         }
 
-        if (!Constants.EVENT_STATE_PENDING.equals(event.getState())) {
-            throw new IllegalArgumentException("Event is not in pending state");
+        // Событие должно быть ОПУБЛИКОВАНО, а не в статусе PENDING
+        if (!Constants.EVENT_STATE_PUBLISHED.equals(event.getState())) {
+            throw new ConflictException("Event must be published");
         }
 
         Long confirmedCount = requestRepository.countConfirmedRequestsByEventId(eventId);
@@ -135,17 +141,18 @@ public class ParticipationServiceImpl implements ParticipationService {
         List<ParticipationRequest> requests = requestRepository.findAllById(updateRequest.getRequestIds());
 
         for (ParticipationRequest request : requests) {
+            // Можно изменять только заявки в статусе PENDING
             if (!Constants.REQUEST_STATUS_PENDING.equals(request.getStatus())) {
-                throw new IllegalArgumentException("Request status must be PENDING");
+                throw new ConflictException("Request status must be PENDING");
             }
 
             if (Constants.REQUEST_STATUS_CONFIRMED.equals(updateRequest.getStatus())) {
-                if (participantLimit == 0 || confirmedCount < participantLimit) {
-                    request.setStatus(Constants.REQUEST_STATUS_CONFIRMED);
-                    confirmedCount++;
-                } else {
-                    request.setStatus(Constants.REQUEST_STATUS_REJECTED);
+                // Проверка лимита
+                if (participantLimit != 0 && confirmedCount >= participantLimit) {
+                    throw new ConflictException("Participant limit reached");
                 }
+                request.setStatus(Constants.REQUEST_STATUS_CONFIRMED);
+                confirmedCount++;
             } else if (Constants.REQUEST_STATUS_REJECTED.equals(updateRequest.getStatus())) {
                 request.setStatus(Constants.REQUEST_STATUS_REJECTED);
             }

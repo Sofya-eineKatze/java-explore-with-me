@@ -7,11 +7,12 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.practicum.Constants;
 import ru.practicum.dto.UserDto;
+import ru.practicum.exception.ConflictException;
 import ru.practicum.model.User;
 import ru.practicum.repository.UserRepository;
 import ru.practicum.service.UserService;
-import ru.practicum.Constants;
 
 import jakarta.persistence.EntityNotFoundException;
 import java.time.LocalDateTime;
@@ -39,10 +40,7 @@ public class UserServiceImpl implements UserService {
             log.info("Added user with id: {}", saved.getId());
             return toDto(saved);
         } catch (DataIntegrityViolationException e) {
-            throw new IllegalArgumentException("User with this email already exists");
-        } catch (Exception e) {
-            log.error("Error creating user: {}", e.getMessage());
-            throw new RuntimeException("Failed to create user");
+            throw new ConflictException("User with this email already exists");
         }
     }
 
