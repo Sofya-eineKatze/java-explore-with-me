@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -16,13 +17,28 @@ import java.time.LocalDateTime;
 @RestControllerAdvice
 @Slf4j
 public class ErrorHandler {
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorResponse handleMissingServletRequestParameter(MissingServletRequestParameterException e) {
+        log.error("Missing request parameter: {}", e.getMessage());
+        return new ErrorResponse(
+                "BAD_REQUEST",
+                "Required request parameter '" + e.getParameterName() + "' is not present",
+                LocalDateTime.now().toString()
+        );
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorResponse handleMethodArgumentNotValid(MethodArgumentNotValidException e) {
         log.error("Validation error: {}", e.getMessage());
+        String message = e.getBindingResult().getAllErrors().isEmpty()
+                ? "Validation error"
+                : e.getBindingResult().getAllErrors().get(0).getDefaultMessage();
         return new ErrorResponse(
                 "BAD_REQUEST",
-                e.getBindingResult().getAllErrors().get(0).getDefaultMessage(),
+                message,
                 LocalDateTime.now().toString()
         );
     }

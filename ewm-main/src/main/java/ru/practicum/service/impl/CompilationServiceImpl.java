@@ -28,6 +28,8 @@ public class CompilationServiceImpl implements CompilationService {
     private final CompilationRepository compilationRepository;
     private final EventRepository eventRepository;
 
+    //  Публичные методы
+
     @Override
     public List<CompilationDto> getCompilations(Boolean pinned, int from, int size) {
         Pageable pageable = PageRequest.of(from / size, size);
@@ -47,6 +49,8 @@ public class CompilationServiceImpl implements CompilationService {
         Compilation compilation = getCompilationEntity(compId);
         return toDto(compilation);
     }
+
+    // Административные методы
 
     @Override
     @Transactional
@@ -94,6 +98,8 @@ public class CompilationServiceImpl implements CompilationService {
         log.info("Updated compilation with id: {}", compId);
         return toDto(compilation);
     }
+
+    // --- Вспомогательные методы ---
 
     private Compilation getCompilationEntity(Long compId) {
         return compilationRepository.findById(compId)

@@ -2,6 +2,7 @@ package ru.practicum.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -27,15 +28,22 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public UserDto addUser(UserDto userDto) {
-        User user = User.builder()
-                .name(userDto.getName())
-                .email(userDto.getEmail())
-                .registered(LocalDateTime.now())
-                .state(Constants.USER_STATE_ACTIVE)
-                .build();
-        User saved = userRepository.save(user);
-        log.info("Added user with id: {}", saved.getId());
-        return toDto(saved);
+        try {
+            User user = User.builder()
+                    .name(userDto.getName())
+                    .email(userDto.getEmail())
+                    .registered(LocalDateTime.now())
+                    .state(Constants.USER_STATE_ACTIVE)
+                    .build();
+            User saved = userRepository.save(user);
+            log.info("Added user with id: {}", saved.getId());
+            return toDto(saved);
+        } catch (DataIntegrityViolationException e) {
+            throw new IllegalArgumentException("User with this email already exists");
+        } catch (Exception e) {
+            log.error("Error creating user: {}", e.getMessage());
+            throw new RuntimeException("Failed to create user");
+        }
     }
 
     @Override
