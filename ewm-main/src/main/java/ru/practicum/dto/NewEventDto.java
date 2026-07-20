@@ -1,15 +1,14 @@
 package ru.practicum.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
-import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import ru.practicum.Constants;
 
 import java.time.LocalDateTime;
 
@@ -19,43 +18,54 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class NewEventDto {
 
-    @NotBlank
-    @Size(min = Constants.MIN_TITLE_LENGTH,
-            max = Constants.MAX_TITLE_LENGTH)
-    private String title;
-
-
-    @NotBlank
-    @Size(min = Constants.MIN_ANNOTATION_LENGTH,
-            max = Constants.MAX_ANNOTATION_LENGTH)
+    @NotBlank(message = "Annotation must not be blank")
+    @Size(
+            min = 20,
+            max = 2000,
+            message = "Annotation length must be between 20 and 2000"
+    )
     private String annotation;
 
 
-    @NotBlank
-    @Size(min = Constants.MIN_DESCRIPTION_LENGTH,
-            max = Constants.MAX_DESCRIPTION_LENGTH)
-    private String description;
-
-
-    @NotNull
+    @NotNull(message = "Category must not be null")
     private Long category;
 
 
-    @NotNull
-    @Future
-    @JsonFormat(pattern = Constants.DATE_TIME_FORMAT)
+    @NotBlank(message = "Description must not be blank")
+    @Size(
+            min = 20,
+            max = 7000,
+            message = "Description length must be between 20 and 7000"
+    )
+    private String description;
+
+
+    @NotNull(message = "Event date must not be null")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime eventDate;
 
 
-    @NotNull
+    @NotNull(message = "Location must not be null")
     private LocationDto location;
 
 
     private Boolean paid = false;
 
 
+    @PositiveOrZero(
+            message = "Participant limit must be positive or zero"
+    )
     private Integer participantLimit = 0;
 
 
     private Boolean requestModeration = true;
+
+
+    @NotBlank(message = "Title must not be blank")
+    @Size(
+            min = 3,
+            max = 120,
+            message = "Title length must be between 3 and 120"
+    )
+    private String title;
 }

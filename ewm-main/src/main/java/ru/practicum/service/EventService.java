@@ -28,5 +28,5 @@ public interface EventService {
     List<EventFullDto> getEventsByAdmin(List<Long> users, List<String> states, List<Long> categories,
                                         LocalDateTime rangeStart, LocalDateTime rangeEnd, int from, int size);
 
-    EventFullDto moderateEvent(Long eventId, UpdateEventRequest updateRequest);
+    EventFullDto moderateEvent(Long eventId, UpdateEventAdminRequest updateRequest);
 }

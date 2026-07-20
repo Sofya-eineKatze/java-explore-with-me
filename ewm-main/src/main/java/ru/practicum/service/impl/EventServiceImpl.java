@@ -6,8 +6,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.practicum.Constants;
 import ru.practicum.client.StatsClient;
 import ru.practicum.dto.*;
 import ru.practicum.model.Category;
@@ -18,7 +20,6 @@ import ru.practicum.repository.EventRepository;
 import ru.practicum.repository.ParticipationRequestRepository;
 import ru.practicum.repository.UserRepository;
 import ru.practicum.service.EventService;
-import ru.practicum.Constants;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -29,6 +30,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Transactional(readOnly = true)
 public class EventServiceImpl implements EventService {
+
     private final EventRepository eventRepository;
     private final UserRepository userRepository;
     private final CategoryRepository categoryRepository;
@@ -36,12 +38,30 @@ public class EventServiceImpl implements EventService {
     private final StatsClient statsClient;
 
     @Override
-    public List<EventShortDto> getPublishedEvents(String text, List<Long> categories, Boolean paid,
-                                                  LocalDateTime rangeStart, LocalDateTime rangeEnd,
-                                                  Boolean onlyAvailable, String sort, int from, int size,
+    public List<EventShortDto> getPublishedEvents(String text,
+                                                  List<Long> categories,
+                                                  Boolean paid,
+                                                  LocalDateTime rangeStart,
+                                                  LocalDateTime rangeEnd,
+                                                  Boolean onlyAvailable,
+                                                  String sort,
+                                                  int from,
+                                                  int size,
                                                   HttpServletRequest request) {
-        Pageable pageable = PageRequest.of(from / size, size);
 
+        // Обработка сортировки
+        Sort sortBy;
+        if (Constants.SORT_VIEWS.equalsIgnoreCase(sort)) {
+            sortBy = Sort.by("views").descending();
+        } else if (Constants.SORT_EVENT_DATE.equalsIgnoreCase(sort)) {
+            sortBy = Sort.by("eventDate").ascending();
+        } else {
+            sortBy = Sort.unsorted();
+        }
+
+        Pageable pageable = PageRequest.of(from / size, size, sortBy);
+
+        // Значения по умолчанию для дат
         if (rangeStart == null) {
             rangeStart = LocalDateTime.now();
         }
@@ -49,11 +69,26 @@ public class EventServiceImpl implements EventService {
             rangeEnd = LocalDateTime.now().plusYears(100);
         }
 
+        if (rangeStart.isAfter(rangeEnd)) {
+            throw new IllegalArgumentException("rangeStart must not be after rangeEnd");
+        }
+
         List<Event> events = eventRepository.findPublishedEvents(
-                text, categories, paid, rangeStart, rangeEnd, onlyAvailable, pageable
+                text,
+                categories,
+                paid,
+                rangeStart,
+                rangeEnd,
+                onlyAvailable,
+                pageable
         );
 
-        statsClient.saveHit(Constants.APP_NAME, "/events", request.getRemoteAddr(), LocalDateTime.now());
+        statsClient.saveHit(
+                Constants.APP_NAME,
+                "/events",
+                request.getRemoteAddr(),
+                LocalDateTime.now()
+        );
 
         return events.stream()
                 .map(this::toShortDto)
@@ -78,6 +113,7 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional
     public EventFullDto addEvent(Long userId, NewEventDto newEventDto) {
+
         if (userId == null) {
             throw new IllegalArgumentException("User ID must not be null");
         }
@@ -85,8 +121,14 @@ public class EventServiceImpl implements EventService {
         User user = getUserEntity(userId);
         Category category = getCategoryEntity(newEventDto.getCategory());
 
-        if (newEventDto.getEventDate().isBefore(LocalDateTime.now().plusHours(Constants.MIN_HOURS_BEFORE_EVENT))) {
-            throw new IllegalArgumentException("Event date must be at least " + Constants.MIN_HOURS_BEFORE_EVENT + " hours later");
+        if (newEventDto.getEventDate()
+                .isBefore(LocalDateTime.now()
+                        .plusHours(Constants.MIN_HOURS_BEFORE_EVENT))) {
+
+            throw new IllegalArgumentException(
+                    "Event date must be at least "
+                            + Constants.MIN_HOURS_BEFORE_EVENT
+                            + " hours later");
         }
 
         Event event = Event.builder()
@@ -98,9 +140,15 @@ public class EventServiceImpl implements EventService {
                 .initiator(user)
                 .lat(newEventDto.getLocation().getLat())
                 .lon(newEventDto.getLocation().getLon())
-                .paid(newEventDto.getPaid() != null ? newEventDto.getPaid() : false)
-                .participantLimit(newEventDto.getParticipantLimit() != null ? newEventDto.getParticipantLimit() : 0)
-                .requestModeration(newEventDto.getRequestModeration() != null ? newEventDto.getRequestModeration() : true)
+                .paid(newEventDto.getPaid() != null
+                        ? newEventDto.getPaid()
+                        : false)
+                .participantLimit(newEventDto.getParticipantLimit() != null
+                        ? newEventDto.getParticipantLimit()
+                        : 0)
+                .requestModeration(newEventDto.getRequestModeration() != null
+                        ? newEventDto.getRequestModeration()
+                        : true)
                 .state(Constants.EVENT_STATE_PENDING)
                 .createdOn(LocalDateTime.now())
                 .views(0L)
@@ -108,6 +156,7 @@ public class EventServiceImpl implements EventService {
 
         event = eventRepository.save(event);
         log.info("Added event with id: {}", event.getId());
+
         return toFullDto(event);
     }
 
@@ -137,64 +186,104 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional
-    public EventFullDto updateEvent(Long userId, Long eventId, UpdateEventRequest updateRequest) {
+    public EventFullDto updateEvent(Long userId,
+                                    Long eventId,
+                                    UpdateEventRequest updateRequest) {
+
         getUserEntity(userId);
+
         Event event = eventRepository.findByIdAndInitiatorId(eventId, userId);
+
         if (event == null) {
-            throw new EntityNotFoundException("Event not found or you are not the initiator");
+            throw new EntityNotFoundException(
+                    "Event not found or you are not the initiator");
         }
 
         if (Constants.EVENT_STATE_PUBLISHED.equals(event.getState())) {
-            throw new IllegalArgumentException("Cannot update published event");
+            throw new IllegalArgumentException(
+                    "Cannot update published event");
         }
 
+        // Обновление полей
         if (updateRequest.getAnnotation() != null) {
             event.setAnnotation(updateRequest.getAnnotation());
         }
+
         if (updateRequest.getDescription() != null) {
             event.setDescription(updateRequest.getDescription());
         }
+
         if (updateRequest.getTitle() != null) {
             event.setTitle(updateRequest.getTitle());
         }
+
         if (updateRequest.getEventDate() != null) {
-            if (updateRequest.getEventDate().isBefore(LocalDateTime.now().plusHours(Constants.MIN_HOURS_BEFORE_EVENT))) {
-                throw new IllegalArgumentException("Event date must be at least " + Constants.MIN_HOURS_BEFORE_EVENT + " hours later");
+
+            if (updateRequest.getEventDate()
+                    .isBefore(LocalDateTime.now()
+                            .plusHours(Constants.MIN_HOURS_BEFORE_EVENT))) {
+
+                throw new IllegalArgumentException(
+                        "Event date must be at least "
+                                + Constants.MIN_HOURS_BEFORE_EVENT
+                                + " hours later");
             }
+
             event.setEventDate(updateRequest.getEventDate());
         }
+
         if (updateRequest.getCategory() != null) {
-            event.setCategory(getCategoryEntity(updateRequest.getCategory()));
+            event.setCategory(
+                    getCategoryEntity(updateRequest.getCategory()));
         }
+
         if (updateRequest.getLocation() != null) {
             event.setLat(updateRequest.getLocation().getLat());
             event.setLon(updateRequest.getLocation().getLon());
         }
+
         if (updateRequest.getPaid() != null) {
             event.setPaid(updateRequest.getPaid());
         }
+
         if (updateRequest.getParticipantLimit() != null) {
-            event.setParticipantLimit(updateRequest.getParticipantLimit());
+
+            if (updateRequest.getParticipantLimit() < 0) {
+                throw new IllegalArgumentException(
+                        "Participant limit must not be negative");
+            }
+
+            event.setParticipantLimit(
+                    updateRequest.getParticipantLimit());
         }
+
         if (updateRequest.getRequestModeration() != null) {
-            event.setRequestModeration(updateRequest.getRequestModeration());
+            event.setRequestModeration(
+                    updateRequest.getRequestModeration());
         }
 
         if (updateRequest.getStateAction() != null) {
+
             switch (updateRequest.getStateAction()) {
+
                 case Constants.STATE_ACTION_SEND_TO_REVIEW:
                     event.setState(Constants.EVENT_STATE_PENDING);
                     break;
+
                 case Constants.STATE_ACTION_CANCEL_REVIEW:
                     event.setState(Constants.EVENT_STATE_CANCELED);
                     break;
+
                 default:
-                    throw new IllegalArgumentException("Unknown state action: " + updateRequest.getStateAction());
+                    throw new IllegalArgumentException(
+                            "Unknown state action: "
+                                    + updateRequest.getStateAction());
             }
         }
 
         event = eventRepository.save(event);
         log.info("Updated event with id: {}", event.getId());
+
         return toFullDto(event);
     }
 
@@ -210,6 +299,10 @@ public class EventServiceImpl implements EventService {
             rangeEnd = LocalDateTime.now().plusYears(100);
         }
 
+        if (rangeStart.isAfter(rangeEnd)) {
+            throw new IllegalArgumentException("rangeStart must not be after rangeEnd");
+        }
+
         List<Event> events = eventRepository.findEventsByAdmin(users, states, categories, rangeStart, rangeEnd, pageable);
         return events.stream()
                 .map(this::toFullDto)
@@ -218,10 +311,55 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional
-    public EventFullDto moderateEvent(Long eventId, UpdateEventRequest updateRequest) {
+    public EventFullDto moderateEvent(Long eventId, UpdateEventAdminRequest updateRequest) {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new EntityNotFoundException("Event not found"));
 
+        // Обновление полей (админ может менять всё)
+        if (updateRequest.getAnnotation() != null) {
+            event.setAnnotation(updateRequest.getAnnotation());
+        }
+
+        if (updateRequest.getDescription() != null) {
+            event.setDescription(updateRequest.getDescription());
+        }
+
+        if (updateRequest.getTitle() != null) {
+            event.setTitle(updateRequest.getTitle());
+        }
+
+        if (updateRequest.getEventDate() != null) {
+            if (updateRequest.getEventDate().isBefore(LocalDateTime.now().plusHours(Constants.MIN_HOURS_BEFORE_EVENT))) {
+                throw new IllegalArgumentException("Event date must be at least " + Constants.MIN_HOURS_BEFORE_EVENT + " hours later");
+            }
+            event.setEventDate(updateRequest.getEventDate());
+        }
+
+        if (updateRequest.getCategory() != null) {
+            event.setCategory(getCategoryEntity(updateRequest.getCategory()));
+        }
+
+        if (updateRequest.getLocation() != null) {
+            event.setLat(updateRequest.getLocation().getLat());
+            event.setLon(updateRequest.getLocation().getLon());
+        }
+
+        if (updateRequest.getPaid() != null) {
+            event.setPaid(updateRequest.getPaid());
+        }
+
+        if (updateRequest.getParticipantLimit() != null) {
+            if (updateRequest.getParticipantLimit() < 0) {
+                throw new IllegalArgumentException("Participant limit must not be negative");
+            }
+            event.setParticipantLimit(updateRequest.getParticipantLimit());
+        }
+
+        if (updateRequest.getRequestModeration() != null) {
+            event.setRequestModeration(updateRequest.getRequestModeration());
+        }
+
+        // Обработка статуса
         if (updateRequest.getStateAction() == null) {
             throw new IllegalArgumentException("State action is required");
         }
