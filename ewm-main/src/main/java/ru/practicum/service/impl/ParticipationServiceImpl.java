@@ -36,6 +36,7 @@ public class ParticipationServiceImpl implements ParticipationService {
 
     @Override
     public List<ParticipationRequestDto> getUserRequests(Long userId) {
+
         getUserEntity(userId);
 
         return requestRepository.findByRequesterId(userId)
@@ -52,48 +53,52 @@ public class ParticipationServiceImpl implements ParticipationService {
         User user = getUserEntity(userId);
         Event event = getEventEntity(eventId);
 
+
         if (event.getInitiator().getId().equals(userId)) {
             throw new ConflictException(
-                    "You cannot request participation in your own event"
-            );
+                    "You cannot request participation in your own event");
         }
+
 
         if (!EventState.PUBLISHED.equals(event.getState())) {
             throw new ConflictException(
-                    "Event is not published"
-            );
+                    "Event is not published");
         }
+
 
         if (requestRepository.existsByRequesterIdAndEventIdAndStatusNot(
                 userId,
                 eventId,
-                RequestStatus.CANCELED.name())) {
+                RequestStatus.CANCELED)) {
 
             throw new ConflictException(
-                    "You already have a request for this event"
-            );
+                    "You already have a request for this event");
         }
 
 
         Long confirmedCount =
                 requestRepository.countConfirmedRequestsByEventId(eventId);
 
-        Integer limit = event.getParticipantLimit() == null
+
+        Integer participantLimit = event.getParticipantLimit() == null
                 ? 0
                 : event.getParticipantLimit();
 
 
-        if (limit > 0 && confirmedCount >= limit) {
+        if (participantLimit > 0
+                && confirmedCount >= participantLimit) {
+
             throw new ConflictException(
-                    "Participant limit is reached"
-            );
+                    "Participant limit is reached");
         }
 
 
-        RequestStatus status =
-                event.getRequestModeration()
-                        ? RequestStatus.PENDING
-                        : RequestStatus.CONFIRMED;
+        RequestStatus status = RequestStatus.PENDING;
+
+
+        if (Boolean.FALSE.equals(event.getRequestModeration())) {
+            status = RequestStatus.CONFIRMED;
+        }
 
 
         ParticipationRequest request = ParticipationRequest.builder()
@@ -104,7 +109,11 @@ public class ParticipationServiceImpl implements ParticipationService {
                 .build();
 
 
-        return toDto(requestRepository.save(request));
+        request = requestRepository.save(request);
+
+        log.info("Added request with id: {}", request.getId());
+
+        return toDto(request);
     }
 
 
@@ -116,8 +125,14 @@ public class ParticipationServiceImpl implements ParticipationService {
                 requestRepository.findByIdAndRequesterId(requestId, userId)
                         .orElseThrow(() ->
                                 new EntityNotFoundException(
-                                        "Request not found"
-                                ));
+                                        "Request not found"));
+
+
+        if (RequestStatus.CONFIRMED.equals(request.getStatus())) {
+            throw new ConflictException(
+                    "Cannot cancel confirmed request");
+        }
+
 
         request.setStatus(RequestStatus.CANCELED);
 
@@ -132,10 +147,10 @@ public class ParticipationServiceImpl implements ParticipationService {
 
         Event event = getEventEntity(eventId);
 
+
         if (!event.getInitiator().getId().equals(userId)) {
             throw new ConflictException(
-                    "You are not the initiator of this event"
-            );
+                    "You are not the initiator of this event");
         }
 
 
@@ -159,57 +174,57 @@ public class ParticipationServiceImpl implements ParticipationService {
 
         if (!event.getInitiator().getId().equals(userId)) {
             throw new ConflictException(
-                    "You are not the initiator of this event"
-            );
+                    "You are not the initiator of this event");
         }
 
 
         if (!EventState.PUBLISHED.equals(event.getState())) {
             throw new ConflictException(
-                    "Event must be published"
-            );
+                    "Event must be published");
         }
-
-
-        RequestStatus newStatus =
-                RequestStatus.valueOf(updateRequest.getStatus());
 
 
         List<ParticipationRequest> requests =
                 requestRepository.findAllById(
-                        updateRequest.getRequestIds()
-                );
+                        updateRequest.getRequestIds());
 
 
-        long confirmed =
+        Long confirmedCount =
                 requestRepository.countConfirmedRequestsByEventId(eventId);
 
 
-        int limit =
+        Integer participantLimit =
                 event.getParticipantLimit() == null
                         ? 0
                         : event.getParticipantLimit();
+
 
 
         for (ParticipationRequest request : requests) {
 
             if (!RequestStatus.PENDING.equals(request.getStatus())) {
                 throw new ConflictException(
-                        "Request status must be PENDING"
-                );
+                        "Request status must be PENDING");
             }
 
 
-            if (RequestStatus.CONFIRMED.equals(newStatus)) {
+            if (RequestStatus.CONFIRMED.name()
+                    .equals(updateRequest.getStatus())) {
 
-                if (limit > 0 && confirmed >= limit) {
+
+                if (participantLimit > 0
+                        && confirmedCount >= participantLimit) {
+
                     request.setStatus(RequestStatus.REJECTED);
+
                 } else {
+
                     request.setStatus(RequestStatus.CONFIRMED);
-                    confirmed++;
+                    confirmedCount++;
                 }
 
-            } else if (RequestStatus.REJECTED.equals(newStatus)) {
+            } else if (RequestStatus.REJECTED.name()
+                    .equals(updateRequest.getStatus())) {
 
                 request.setStatus(RequestStatus.REJECTED);
             }
@@ -219,38 +234,43 @@ public class ParticipationServiceImpl implements ParticipationService {
         requestRepository.saveAll(requests);
 
 
-        return new EventRequestStatusUpdateResult(
-
+        List<ParticipationRequestDto> confirmed =
                 requests.stream()
                         .filter(r ->
                                 RequestStatus.CONFIRMED.equals(r.getStatus()))
                         .map(this::toDto)
-                        .collect(Collectors.toList()),
+                        .collect(Collectors.toList());
 
+
+        List<ParticipationRequestDto> rejected =
                 requests.stream()
                         .filter(r ->
                                 RequestStatus.REJECTED.equals(r.getStatus()))
                         .map(this::toDto)
-                        .collect(Collectors.toList())
-        );
+                        .collect(Collectors.toList());
+
+
+        return new EventRequestStatusUpdateResult(
+                confirmed,
+                rejected);
     }
 
 
-    private User getUserEntity(Long id) {
-        return userRepository.findById(id)
+    private User getUserEntity(Long userId) {
+
+        return userRepository.findById(userId)
                 .orElseThrow(() ->
                         new EntityNotFoundException(
-                                "User not found"
-                        ));
+                                "User not found: " + userId));
     }
 
 
-    private Event getEventEntity(Long id) {
-        return eventRepository.findById(id)
+    private Event getEventEntity(Long eventId) {
+
+        return eventRepository.findById(eventId)
                 .orElseThrow(() ->
                         new EntityNotFoundException(
-                                "Event not found"
-                        ));
+                                "Event not found: " + eventId));
     }
 
 
