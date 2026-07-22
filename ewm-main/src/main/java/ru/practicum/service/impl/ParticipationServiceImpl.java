@@ -5,7 +5,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ru.practicum.Constants;
 import ru.practicum.dto.EventRequestStatusUpdateRequest;
 import ru.practicum.dto.EventRequestStatusUpdateResult;
 import ru.practicum.dto.ParticipationRequestDto;
@@ -13,6 +12,8 @@ import ru.practicum.exception.ConflictException;
 import ru.practicum.model.Event;
 import ru.practicum.model.ParticipationRequest;
 import ru.practicum.model.User;
+import ru.practicum.model.enums.EventState;
+import ru.practicum.model.enums.RequestStatus;
 import ru.practicum.repository.EventRepository;
 import ru.practicum.repository.ParticipationRequestRepository;
 import ru.practicum.repository.UserRepository;
@@ -27,92 +28,116 @@ import java.util.stream.Collectors;
 @Slf4j
 @Transactional(readOnly = true)
 public class ParticipationServiceImpl implements ParticipationService {
+
     private final ParticipationRequestRepository requestRepository;
     private final EventRepository eventRepository;
     private final UserRepository userRepository;
 
+
     @Override
     public List<ParticipationRequestDto> getUserRequests(Long userId) {
         getUserEntity(userId);
+
         return requestRepository.findByRequesterId(userId)
                 .stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());
     }
 
+
     @Override
     @Transactional
     public ParticipationRequestDto addRequest(Long userId, Long eventId) {
-        if (eventId == null) {
-            throw new IllegalArgumentException("Event ID must not be null");
-        }
 
         User user = getUserEntity(userId);
         Event event = getEventEntity(eventId);
 
         if (event.getInitiator().getId().equals(userId)) {
-            throw new ConflictException("You cannot request participation in your own event");
+            throw new ConflictException(
+                    "You cannot request participation in your own event"
+            );
         }
 
-        if (!Constants.EVENT_STATE_PUBLISHED.equals(event.getState())) {
-            throw new ConflictException("Event is not published");
+        if (!EventState.PUBLISHED.equals(event.getState())) {
+            throw new ConflictException(
+                    "Event is not published"
+            );
         }
 
-        if (requestRepository.existsByRequesterIdAndEventIdAndStatusNot(userId, eventId, Constants.REQUEST_STATUS_CANCELED)) {
-            throw new ConflictException("You already have a pending request for this event");
+        if (requestRepository.existsByRequesterIdAndEventIdAndStatusNot(
+                userId,
+                eventId,
+                RequestStatus.CANCELED.name())) {
+
+            throw new ConflictException(
+                    "You already have a request for this event"
+            );
         }
 
-        Long confirmedCount = requestRepository.countConfirmedRequestsByEventId(eventId);
-        Integer participantLimit = event.getParticipantLimit() != null ? event.getParticipantLimit() : 0;
 
-        if (participantLimit > 0 && confirmedCount >= participantLimit) {
-            throw new ConflictException("Participant limit is reached");
+        Long confirmedCount =
+                requestRepository.countConfirmedRequestsByEventId(eventId);
+
+        Integer limit = event.getParticipantLimit() == null
+                ? 0
+                : event.getParticipantLimit();
+
+
+        if (limit > 0 && confirmedCount >= limit) {
+            throw new ConflictException(
+                    "Participant limit is reached"
+            );
         }
+
+
+        RequestStatus status =
+                event.getRequestModeration()
+                        ? RequestStatus.PENDING
+                        : RequestStatus.CONFIRMED;
+
 
         ParticipationRequest request = ParticipationRequest.builder()
                 .requester(user)
                 .event(event)
-                .created(LocalDateTime.now().withNano((LocalDateTime.now().getNano() / 1000) * 1000))
-                .status(Constants.REQUEST_STATUS_PENDING)
+                .created(LocalDateTime.now())
+                .status(status)
                 .build();
 
-        if (!event.getRequestModeration()) {
-            request.setStatus(Constants.REQUEST_STATUS_CONFIRMED);
-        }
 
-        if (participantLimit == 0) {
-            request.setStatus(Constants.REQUEST_STATUS_CONFIRMED);
-        }
-
-        request = requestRepository.save(request);
-        log.info("Added request with id: {}", request.getId());
-        return toDto(request);
+        return toDto(requestRepository.save(request));
     }
+
 
     @Override
     @Transactional
     public ParticipationRequestDto cancelRequest(Long userId, Long requestId) {
-        ParticipationRequest request = requestRepository.findByIdAndRequesterId(requestId, userId)
-                .orElseThrow(() -> new EntityNotFoundException("Request not found"));
 
-        // Нельзя отменить уже подтверждённую заявку
-        if (Constants.REQUEST_STATUS_CONFIRMED.equals(request.getStatus())) {
-            throw new ConflictException("Cannot cancel already confirmed request");
-        }
+        ParticipationRequest request =
+                requestRepository.findByIdAndRequesterId(requestId, userId)
+                        .orElseThrow(() ->
+                                new EntityNotFoundException(
+                                        "Request not found"
+                                ));
 
-        request.setStatus(Constants.REQUEST_STATUS_CANCELED);
-        request = requestRepository.save(request);
-        log.info("Cancelled request with id: {}", requestId);
-        return toDto(request);
+        request.setStatus(RequestStatus.CANCELED);
+
+        return toDto(requestRepository.save(request));
     }
 
+
     @Override
-    public List<ParticipationRequestDto> getEventRequests(Long userId, Long eventId) {
+    public List<ParticipationRequestDto> getEventRequests(
+            Long userId,
+            Long eventId) {
+
         Event event = getEventEntity(eventId);
 
         if (!event.getInitiator().getId().equals(userId)) {
-            throw new ConflictException("You are not the initiator of this event");
+            throw new ConflictException(
+                    "You are not the initiator of this event"
+            );
         }
+
 
         return requestRepository.findByEventId(eventId)
                 .stream()
@@ -120,76 +145,124 @@ public class ParticipationServiceImpl implements ParticipationService {
                 .collect(Collectors.toList());
     }
 
+
     @Override
     @Transactional
-    public EventRequestStatusUpdateResult updateRequestStatus(Long userId, Long eventId,
-                                                              EventRequestStatusUpdateRequest updateRequest) {
+    public EventRequestStatusUpdateResult updateRequestStatus(
+            Long userId,
+            Long eventId,
+            EventRequestStatusUpdateRequest updateRequest) {
+
+
         Event event = getEventEntity(eventId);
 
+
         if (!event.getInitiator().getId().equals(userId)) {
-            throw new ConflictException("You are not the initiator of this event");
+            throw new ConflictException(
+                    "You are not the initiator of this event"
+            );
         }
 
-        // Событие должно быть ОПУБЛИКОВАНО, а не в статусе PENDING
-        if (!Constants.EVENT_STATE_PUBLISHED.equals(event.getState())) {
-            throw new ConflictException("Event must be published");
+
+        if (!EventState.PUBLISHED.equals(event.getState())) {
+            throw new ConflictException(
+                    "Event must be published"
+            );
         }
 
-        Long confirmedCount = requestRepository.countConfirmedRequestsByEventId(eventId);
-        Integer participantLimit = event.getParticipantLimit() != null ? event.getParticipantLimit() : 0;
 
-        List<ParticipationRequest> requests = requestRepository.findAllById(updateRequest.getRequestIds());
+        RequestStatus newStatus =
+                RequestStatus.valueOf(updateRequest.getStatus());
+
+
+        List<ParticipationRequest> requests =
+                requestRepository.findAllById(
+                        updateRequest.getRequestIds()
+                );
+
+
+        long confirmed =
+                requestRepository.countConfirmedRequestsByEventId(eventId);
+
+
+        int limit =
+                event.getParticipantLimit() == null
+                        ? 0
+                        : event.getParticipantLimit();
+
 
         for (ParticipationRequest request : requests) {
-            // Можно изменять только заявки в статусе PENDING
-            if (!Constants.REQUEST_STATUS_PENDING.equals(request.getStatus())) {
-                throw new ConflictException("Request status must be PENDING");
+
+            if (!RequestStatus.PENDING.equals(request.getStatus())) {
+                throw new ConflictException(
+                        "Request status must be PENDING"
+                );
             }
 
-            if (Constants.REQUEST_STATUS_CONFIRMED.equals(updateRequest.getStatus())) {
-                // Проверка лимита
-                if (participantLimit != 0 && confirmedCount >= participantLimit) {
-                    throw new ConflictException("Participant limit reached");
+
+            if (RequestStatus.CONFIRMED.equals(newStatus)) {
+
+                if (limit > 0 && confirmed >= limit) {
+                    request.setStatus(RequestStatus.REJECTED);
+                } else {
+                    request.setStatus(RequestStatus.CONFIRMED);
+                    confirmed++;
                 }
-                request.setStatus(Constants.REQUEST_STATUS_CONFIRMED);
-                confirmedCount++;
-            } else if (Constants.REQUEST_STATUS_REJECTED.equals(updateRequest.getStatus())) {
-                request.setStatus(Constants.REQUEST_STATUS_REJECTED);
+
+            } else if (RequestStatus.REJECTED.equals(newStatus)) {
+
+                request.setStatus(RequestStatus.REJECTED);
             }
         }
+
 
         requestRepository.saveAll(requests);
 
-        List<ParticipationRequestDto> confirmed = requests.stream()
-                .filter(r -> Constants.REQUEST_STATUS_CONFIRMED.equals(r.getStatus()))
-                .map(this::toDto)
-                .collect(Collectors.toList());
 
-        List<ParticipationRequestDto> rejected = requests.stream()
-                .filter(r -> Constants.REQUEST_STATUS_REJECTED.equals(r.getStatus()))
-                .map(this::toDto)
-                .collect(Collectors.toList());
+        return new EventRequestStatusUpdateResult(
 
-        return new EventRequestStatusUpdateResult(confirmed, rejected);
+                requests.stream()
+                        .filter(r ->
+                                RequestStatus.CONFIRMED.equals(r.getStatus()))
+                        .map(this::toDto)
+                        .collect(Collectors.toList()),
+
+                requests.stream()
+                        .filter(r ->
+                                RequestStatus.REJECTED.equals(r.getStatus()))
+                        .map(this::toDto)
+                        .collect(Collectors.toList())
+        );
     }
 
-    private User getUserEntity(Long userId) {
-        return userRepository.findById(userId)
-                .orElseThrow(() -> new EntityNotFoundException("User not found with id: " + userId));
+
+    private User getUserEntity(Long id) {
+        return userRepository.findById(id)
+                .orElseThrow(() ->
+                        new EntityNotFoundException(
+                                "User not found"
+                        ));
     }
 
-    private Event getEventEntity(Long eventId) {
-        return eventRepository.findById(eventId)
-                .orElseThrow(() -> new EntityNotFoundException("Event not found with id: " + eventId));
+
+    private Event getEventEntity(Long id) {
+        return eventRepository.findById(id)
+                .orElseThrow(() ->
+                        new EntityNotFoundException(
+                                "Event not found"
+                        ));
     }
 
-    private ParticipationRequestDto toDto(ParticipationRequest request) {
+
+    private ParticipationRequestDto toDto(
+            ParticipationRequest request) {
+
         return ParticipationRequestDto.builder()
                 .id(request.getId())
                 .created(request.getCreated())
                 .event(request.getEvent().getId())
                 .requester(request.getRequester().getId())
-                .status(request.getStatus())
+                .status(request.getStatus().name())
                 .build();
     }
 }

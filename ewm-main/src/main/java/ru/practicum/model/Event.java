@@ -2,6 +2,7 @@ package ru.practicum.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import ru.practicum.model.enums.EventState;
 
 import java.time.LocalDateTime;
 
@@ -61,9 +62,7 @@ public class Event {
     @Column(name = "request_moderation")
     private Boolean requestModeration;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private String state;
-
-    @Column
-    private Long views;
+    private EventState state;
 }

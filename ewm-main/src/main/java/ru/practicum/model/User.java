@@ -1,15 +1,18 @@
 package ru.practicum.model;
 
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import ru.practicum.model.enums.UserState;
+
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "users")
-
+@Data
 @Builder
-@Getter
-@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 public class User {
@@ -26,6 +29,7 @@ public class User {
     @Column(name = "registered")
     private LocalDateTime registered;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "state")
-    private String state;
+    private UserState state;
 }

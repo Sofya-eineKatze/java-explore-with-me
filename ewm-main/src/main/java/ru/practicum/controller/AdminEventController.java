@@ -7,10 +7,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-import ru.practicum.Constants;
+import ru.practicum.dto.AdminEventSearchParams;
 import ru.practicum.dto.EventFullDto;
 import ru.practicum.dto.UpdateEventAdminRequest;
 import ru.practicum.service.EventService;
+import ru.practicum.Constants;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -35,7 +36,18 @@ public class AdminEventController {
             @RequestParam(defaultValue = "10") @Min(1) int size) {
 
         log.info("GET /admin/events - get events by admin");
-        return eventService.getEventsByAdmin(users, states, categories, rangeStart, rangeEnd, from, size);
+
+        AdminEventSearchParams params = AdminEventSearchParams.builder()
+                .users(users)
+                .states(states)
+                .categories(categories)
+                .rangeStart(rangeStart)
+                .rangeEnd(rangeEnd)
+                .from(from)
+                .size(size)
+                .build();
+
+        return eventService.getEventsByAdmin(params);
     }
 
     @PatchMapping("/{eventId}")

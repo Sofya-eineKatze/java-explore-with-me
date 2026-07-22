@@ -8,6 +8,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import ru.practicum.dto.EventFullDto;
+import ru.practicum.dto.EventSearchParams;
 import ru.practicum.dto.EventShortDto;
 import ru.practicum.service.EventService;
 import ru.practicum.Constants;
@@ -37,8 +38,20 @@ public class PublicEventController {
             HttpServletRequest request) {
 
         log.info("GET /events - get events with filters");
-        return eventService.getPublishedEvents(text, categories, paid, rangeStart, rangeEnd,
-                onlyAvailable, sort, from, size, request);
+
+        EventSearchParams params = EventSearchParams.builder()
+                .text(text)
+                .categories(categories)
+                .paid(paid)
+                .rangeStart(rangeStart)
+                .rangeEnd(rangeEnd)
+                .onlyAvailable(onlyAvailable)
+                .sort(sort)
+                .from(from)
+                .size(size)
+                .build();
+
+        return eventService.getPublishedEvents(params, request);
     }
 
     @GetMapping("/{eventId}")

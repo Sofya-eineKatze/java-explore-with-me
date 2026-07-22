@@ -3,15 +3,12 @@ package ru.practicum.service;
 import jakarta.servlet.http.HttpServletRequest;
 import ru.practicum.dto.*;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 public interface EventService {
+
     // Публичные методы
-    List<EventShortDto> getPublishedEvents(String text, List<Long> categories, Boolean paid,
-                                           LocalDateTime rangeStart, LocalDateTime rangeEnd,
-                                           Boolean onlyAvailable, String sort, int from, int size,
-                                           HttpServletRequest request);
+    List<EventShortDto> getPublishedEvents(EventSearchParams params, HttpServletRequest request);
 
     EventFullDto getPublishedEventById(Long eventId, HttpServletRequest request);
 
@@ -25,8 +22,7 @@ public interface EventService {
     EventFullDto updateEvent(Long userId, Long eventId, UpdateEventRequest updateRequest);
 
     // Административные методы
-    List<EventFullDto> getEventsByAdmin(List<Long> users, List<String> states, List<Long> categories,
-                                        LocalDateTime rangeStart, LocalDateTime rangeEnd, int from, int size);
+    List<EventFullDto> getEventsByAdmin(AdminEventSearchParams params);
 
     EventFullDto moderateEvent(Long eventId, UpdateEventAdminRequest updateRequest);
 }

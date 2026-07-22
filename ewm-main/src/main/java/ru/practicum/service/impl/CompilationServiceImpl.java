@@ -8,9 +8,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.practicum.dto.CompilationDto;
-import ru.practicum.dto.EventShortDto;
 import ru.practicum.dto.NewCompilationDto;
 import ru.practicum.dto.UpdateCompilationRequest;
+import ru.practicum.mapper.CompilationMapper;
 import ru.practicum.model.Compilation;
 import ru.practicum.model.Event;
 import ru.practicum.repository.CompilationRepository;
@@ -25,10 +25,10 @@ import java.util.stream.Collectors;
 @Slf4j
 @Transactional(readOnly = true)
 public class CompilationServiceImpl implements CompilationService {
+
     private final CompilationRepository compilationRepository;
     private final EventRepository eventRepository;
-
-    //  Публичные методы
+    private final CompilationMapper compilationMapper;
 
     @Override
     public List<CompilationDto> getCompilations(Boolean pinned, int from, int size) {
@@ -40,17 +40,15 @@ public class CompilationServiceImpl implements CompilationService {
             compilations = compilationRepository.findAll(pageable).getContent();
         }
         return compilations.stream()
-                .map(this::toDto)
+                .map(compilationMapper::toDto)
                 .collect(Collectors.toList());
     }
 
     @Override
     public CompilationDto getCompilationById(Long compId) {
         Compilation compilation = getCompilationEntity(compId);
-        return toDto(compilation);
+        return compilationMapper.toDto(compilation);
     }
-
-    // Административные методы
 
     @Override
     @Transactional
@@ -67,7 +65,7 @@ public class CompilationServiceImpl implements CompilationService {
 
         compilation = compilationRepository.save(compilation);
         log.info("Added compilation with id: {}", compilation.getId());
-        return toDto(compilation);
+        return compilationMapper.toDto(compilation);
     }
 
     @Override
@@ -96,33 +94,11 @@ public class CompilationServiceImpl implements CompilationService {
 
         compilation = compilationRepository.save(compilation);
         log.info("Updated compilation with id: {}", compId);
-        return toDto(compilation);
+        return compilationMapper.toDto(compilation);
     }
-
-    // --- Вспомогательные методы ---
 
     private Compilation getCompilationEntity(Long compId) {
         return compilationRepository.findById(compId)
                 .orElseThrow(() -> new EntityNotFoundException("Compilation not found with id: " + compId));
-    }
-
-    private CompilationDto toDto(Compilation compilation) {
-        List<EventShortDto> eventDtos = compilation.getEvents().stream()
-                .map(event -> EventShortDto.builder()
-                        .id(event.getId())
-                        .annotation(event.getAnnotation())
-                        .title(event.getTitle())
-                        .eventDate(event.getEventDate())
-                        .paid(event.getPaid())
-                        .views(event.getViews() != null ? event.getViews() : 0L)
-                        .build())
-                .collect(Collectors.toList());
-
-        return CompilationDto.builder()
-                .id(compilation.getId())
-                .title(compilation.getTitle())
-                .pinned(compilation.getPinned())
-                .events(eventDtos)
-                .build();
     }
 }

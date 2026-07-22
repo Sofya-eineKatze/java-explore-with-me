@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import ru.practicum.model.enums.RequestStatus;
 
 import java.time.LocalDateTime;
 
@@ -30,8 +31,9 @@ public class ParticipationRequest {
     @Column(name = "created")
     private LocalDateTime created;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private String status;
+    private RequestStatus status;
 
     public void setCreated(LocalDateTime created) {
         if (created != null) {
