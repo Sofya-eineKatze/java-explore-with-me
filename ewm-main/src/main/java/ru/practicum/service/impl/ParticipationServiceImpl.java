@@ -80,12 +80,11 @@ public class ParticipationServiceImpl implements ParticipationService {
                 requestRepository.countConfirmedRequestsByEventId(eventId);
 
 
-        Integer participantLimit = event.getParticipantLimit() == null
-                ? 0
-                : event.getParticipantLimit();
+        Integer participantLimit = event.getParticipantLimit();
 
 
-        if (participantLimit > 0
+        if (participantLimit != null
+                && participantLimit > 0
                 && confirmedCount >= participantLimit) {
 
             throw new ConflictException(
@@ -93,20 +92,27 @@ public class ParticipationServiceImpl implements ParticipationService {
         }
 
 
-        RequestStatus status = RequestStatus.PENDING;
-
-
-        if (Boolean.FALSE.equals(event.getRequestModeration())) {
-            status = RequestStatus.CONFIRMED;
-        }
-
-
         ParticipationRequest request = ParticipationRequest.builder()
                 .requester(user)
                 .event(event)
-                .created(LocalDateTime.now())
-                .status(status)
+                .status(RequestStatus.PENDING)
                 .build();
+
+
+        request.setCreated(LocalDateTime.now());
+
+
+        /*
+          Если модерация выключена
+          или лимит участников не установлен / равен 0
+          заявка сразу подтверждается
+         */
+        if (!event.getRequestModeration()
+                || participantLimit == null
+                || participantLimit == 0) {
+
+            request.setStatus(RequestStatus.CONFIRMED);
+        }
 
 
         request = requestRepository.save(request);
@@ -115,6 +121,7 @@ public class ParticipationServiceImpl implements ParticipationService {
 
         return toDto(request);
     }
+
 
 
     @Override
@@ -136,8 +143,12 @@ public class ParticipationServiceImpl implements ParticipationService {
 
         request.setStatus(RequestStatus.CANCELED);
 
-        return toDto(requestRepository.save(request));
+        request = requestRepository.save(request);
+
+
+        return toDto(request);
     }
+
 
 
     @Override
@@ -145,10 +156,12 @@ public class ParticipationServiceImpl implements ParticipationService {
             Long userId,
             Long eventId) {
 
+
         Event event = getEventEntity(eventId);
 
 
         if (!event.getInitiator().getId().equals(userId)) {
+
             throw new ConflictException(
                     "You are not the initiator of this event");
         }
@@ -159,6 +172,7 @@ public class ParticipationServiceImpl implements ParticipationService {
                 .map(this::toDto)
                 .collect(Collectors.toList());
     }
+
 
 
     @Override
@@ -173,15 +187,24 @@ public class ParticipationServiceImpl implements ParticipationService {
 
 
         if (!event.getInitiator().getId().equals(userId)) {
+
             throw new ConflictException(
                     "You are not the initiator of this event");
         }
 
 
         if (!EventState.PUBLISHED.equals(event.getState())) {
+
             throw new ConflictException(
                     "Event must be published");
         }
+
+
+        Long confirmedCount =
+                requestRepository.countConfirmedRequestsByEventId(eventId);
+
+
+        Integer participantLimit = event.getParticipantLimit();
 
 
         List<ParticipationRequest> requests =
@@ -189,20 +212,11 @@ public class ParticipationServiceImpl implements ParticipationService {
                         updateRequest.getRequestIds());
 
 
-        Long confirmedCount =
-                requestRepository.countConfirmedRequestsByEventId(eventId);
-
-
-        Integer participantLimit =
-                event.getParticipantLimit() == null
-                        ? 0
-                        : event.getParticipantLimit();
-
-
-
         for (ParticipationRequest request : requests) {
 
+
             if (!RequestStatus.PENDING.equals(request.getStatus())) {
+
                 throw new ConflictException(
                         "Request status must be PENDING");
             }
@@ -212,19 +226,22 @@ public class ParticipationServiceImpl implements ParticipationService {
                     .equals(updateRequest.getStatus())) {
 
 
-                if (participantLimit > 0
+                if (participantLimit != null
                         && confirmedCount >= participantLimit) {
 
-                    request.setStatus(RequestStatus.REJECTED);
-
-                } else {
-
-                    request.setStatus(RequestStatus.CONFIRMED);
-                    confirmedCount++;
+                    throw new ConflictException(
+                            "Participant limit reached");
                 }
+
+
+                request.setStatus(RequestStatus.CONFIRMED);
+
+                confirmedCount++;
+
 
             } else if (RequestStatus.REJECTED.name()
                     .equals(updateRequest.getStatus())) {
+
 
                 request.setStatus(RequestStatus.REJECTED);
             }
@@ -237,7 +254,8 @@ public class ParticipationServiceImpl implements ParticipationService {
         List<ParticipationRequestDto> confirmed =
                 requests.stream()
                         .filter(r ->
-                                RequestStatus.CONFIRMED.equals(r.getStatus()))
+                                RequestStatus.CONFIRMED.equals(
+                                        r.getStatus()))
                         .map(this::toDto)
                         .collect(Collectors.toList());
 
@@ -245,7 +263,8 @@ public class ParticipationServiceImpl implements ParticipationService {
         List<ParticipationRequestDto> rejected =
                 requests.stream()
                         .filter(r ->
-                                RequestStatus.REJECTED.equals(r.getStatus()))
+                                RequestStatus.REJECTED.equals(
+                                        r.getStatus()))
                         .map(this::toDto)
                         .collect(Collectors.toList());
 
@@ -256,13 +275,15 @@ public class ParticipationServiceImpl implements ParticipationService {
     }
 
 
+
     private User getUserEntity(Long userId) {
 
         return userRepository.findById(userId)
                 .orElseThrow(() ->
                         new EntityNotFoundException(
-                                "User not found: " + userId));
+                                "User not found"));
     }
+
 
 
     private Event getEventEntity(Long eventId) {
@@ -270,12 +291,14 @@ public class ParticipationServiceImpl implements ParticipationService {
         return eventRepository.findById(eventId)
                 .orElseThrow(() ->
                         new EntityNotFoundException(
-                                "Event not found: " + eventId));
+                                "Event not found"));
     }
+
 
 
     private ParticipationRequestDto toDto(
             ParticipationRequest request) {
+
 
         return ParticipationRequestDto.builder()
                 .id(request.getId())
