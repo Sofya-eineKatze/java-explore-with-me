@@ -47,7 +47,6 @@ public class CommentServiceImpl implements CommentService {
             Long eventId,
             NewCommentDto dto) {
 
-
         User user = getUserEntity(userId);
 
         Event event = getEventEntity(eventId);

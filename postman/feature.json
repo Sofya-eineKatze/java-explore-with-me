@@ -6,7 +6,98 @@
   },
   "item": [
     {
-      "name": "1. Create comment for user",
+      "name": "1. Create user for comments",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"name\": \"Comment User\",\n    \"email\": \"comment@test.com\"\n}"
+        },
+        "url": "http://localhost:8080/admin/users"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 201\", function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "",
+              "pm.collectionVariables.set(\"userId\", pm.response.json().id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Create event for comments",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"Comment event\",\n  \"annotation\": \"Событие для проверки комментариев\",\n  \"description\": \"Описание события для проверки дополнительной функциональности комментариев\",\n  \"eventDate\": \"2027-01-01 15:00:00\",\n  \"category\": 1,\n  \"location\": {\n    \"lat\": 55.7558,\n    \"lon\": 37.6173\n  },\n  \"paid\": false,\n  \"participantLimit\": 0,\n  \"requestModeration\": false\n}"
+        },
+        "url": "http://localhost:8080/users/{{userId}}/events"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 201\", function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "",
+              "pm.collectionVariables.set(\"eventId\", pm.response.json().id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Publish event",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"stateAction\": \"PUBLISH_EVENT\"\n}"
+        },
+        "url": "http://localhost:8080/admin/events/{{eventId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Create comment",
       "request": {
         "method": "POST",
         "header": [
@@ -19,21 +110,7 @@
           "mode": "raw",
           "raw": "{\n    \"text\": \"Отличное мероприятие\"\n}"
         },
-        "url": {
-          "raw": "http://localhost:8080/users/1/events/1/comments",
-          "protocol": "http",
-          "host": [
-            "localhost"
-          ],
-          "port": "8080",
-          "path": [
-            "users",
-            "1",
-            "events",
-            "1",
-            "comments"
-          ]
-        }
+        "url": "http://localhost:8080/users/{{userId}}/events/{{eventId}}/comments"
       },
       "event": [
         {
@@ -51,22 +128,10 @@
       ]
     },
     {
-      "name": "2. Get event comments",
+      "name": "5. Get event comments",
       "request": {
         "method": "GET",
-        "url": {
-          "raw": "http://localhost:8080/events/1/comments",
-          "protocol": "http",
-          "host": [
-            "localhost"
-          ],
-          "port": "8080",
-          "path": [
-            "events",
-            "1",
-            "comments"
-          ]
-        }
+        "url": "http://localhost:8080/events/{{eventId}}/comments"
       },
       "event": [
         {
@@ -82,54 +147,27 @@
       ]
     },
     {
-      "name": "3. Get user comments",
+      "name": "6. Get user comments",
       "request": {
         "method": "GET",
-        "url": {
-          "raw": "http://localhost:8080/users/1/comments",
-          "protocol": "http",
-          "host": [
-            "localhost"
-          ],
-          "port": "8080",
-          "path": [
-            "users",
-            "1",
-            "comments"
-          ]
-        }
+        "url": "http://localhost:8080/users/{{userId}}/comments"
       },
       "event": [
         {
           "listen": "test",
-          "script": {
-            "exec": [
-              "pm.test(\"Status code is 200\", function () {",
-              "    pm.response.to.have.status(200);",
-              "});"
-            ]
-          }
+          "script": [
+            "pm.test(\"Status code is 200\", function () {",
+            "    pm.response.to.have.status(200);",
+            "});"
+          ]
         }
       ]
     },
     {
-      "name": "4. Delete own comment",
+      "name": "7. Delete own comment",
       "request": {
         "method": "DELETE",
-        "url": {
-          "raw": "http://localhost:8080/users/1/comments/{{commentId}}",
-          "protocol": "http",
-          "host": [
-            "localhost"
-          ],
-          "port": "8080",
-          "path": [
-            "users",
-            "1",
-            "comments",
-            "{{commentId}}"
-          ]
-        }
+        "url": "http://localhost:8080/users/{{userId}}/comments/{{commentId}}"
       },
       "event": [
         {
@@ -145,7 +183,7 @@
       ]
     },
     {
-      "name": "5. Create second comment for admin delete",
+      "name": "8. Create comment for admin delete",
       "request": {
         "method": "POST",
         "header": [
@@ -158,21 +196,7 @@
           "mode": "raw",
           "raw": "{\n    \"text\": \"Комментарий для администратора\"\n}"
         },
-        "url": {
-          "raw": "http://localhost:8080/users/1/events/1/comments",
-          "protocol": "http",
-          "host": [
-            "localhost"
-          ],
-          "port": "8080",
-          "path": [
-            "users",
-            "1",
-            "events",
-            "1",
-            "comments"
-          ]
-        }
+        "url": "http://localhost:8080/users/{{userId}}/events/{{eventId}}/comments"
       },
       "event": [
         {
@@ -190,22 +214,10 @@
       ]
     },
     {
-      "name": "6. Admin delete comment",
+      "name": "9. Admin delete comment",
       "request": {
         "method": "DELETE",
-        "url": {
-          "raw": "http://localhost:8080/admin/comments/{{adminCommentId}}",
-          "protocol": "http",
-          "host": [
-            "localhost"
-          ],
-          "port": "8080",
-          "path": [
-            "admin",
-            "comments",
-            "{{adminCommentId}}"
-          ]
-        }
+        "url": "http://localhost:8080/admin/comments/{{adminCommentId}}"
       },
       "event": [
         {
@@ -222,6 +234,14 @@
     }
   ],
   "variable": [
+    {
+      "key": "userId",
+      "value": ""
+    },
+    {
+      "key": "eventId",
+      "value": ""
+    },
     {
       "key": "commentId",
       "value": ""
