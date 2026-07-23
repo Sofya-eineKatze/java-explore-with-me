@@ -3,7 +3,7 @@ server:
 
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/ewm-main
+    url: jdbc:postgresql://localhost:5432/ewm_main
     username: postgres
     password: postgres
     driver-class-name: org.postgresql.Driver
@@ -15,9 +15,13 @@ spring:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
 
 stats-server:
-  url: http://localhost:9090
+  url: ${STATS_SERVER_URL:http://localhost:9090}
 
 logging:
   level:

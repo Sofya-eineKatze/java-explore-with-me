@@ -26,3 +26,34 @@ services:
       SPRING_DATASOURCE_PASSWORD: postgres
     ports:
       - "9090:9090"
+
+  ewm-db:
+    image: postgres:16-alpine
+    container_name: ewm-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ewm_main
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ewm-service:
+    build: ./ewm-main
+    container_name: ewm-service
+    depends_on:
+      ewm-db:
+        condition: service_healthy
+      stats-server:
+        condition: service_started
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://ewm-db:5432/ewm_main
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      STATS_SERVER_URL: http://stats-server:9090
+    ports:
+      - "8080:8080"
