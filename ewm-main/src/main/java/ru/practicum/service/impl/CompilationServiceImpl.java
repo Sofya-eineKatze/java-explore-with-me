@@ -21,7 +21,6 @@ import ru.practicum.repository.ParticipationRequestRepository;
 import ru.practicum.service.CompilationService;
 
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
