@@ -7,6 +7,7 @@ import java.util.List;
 
 public interface CommentService {
 
+    CommentDto getComment(Long commentId);
 
     CommentDto addComment(
             Long userId,

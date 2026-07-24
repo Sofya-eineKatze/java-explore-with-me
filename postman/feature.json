@@ -17,7 +17,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n    \"name\": \"Comment User\",\n    \"email\": \"comment@test.com\"\n}"
+          "raw": "{\n    \"name\": \"Comment User\",\n    \"email\": \"comment{{$timestamp}}@test.com\"\n}"
         },
         "url": "http://localhost:8080/admin/users"
       },
@@ -108,9 +108,9 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n    \"text\": \"Отличное мероприятие\"\n}"
+          "raw": "{\n    \"text\": \"Отличное мероприятие, мне очень понравилось\"\n}"
         },
-        "url": "http://localhost:8080/users/{{userId}}/events/{{eventId}}/comments"
+        "url": "http://localhost:8080/users/{{userId}}/comments/events/{{eventId}}"
       },
       "event": [
         {
@@ -131,7 +131,7 @@
       "name": "5. Get event comments",
       "request": {
         "method": "GET",
-        "url": "http://localhost:8080/events/{{eventId}}/comments"
+        "url": "http://localhost:8080/users/{{userId}}/comments/events/{{eventId}}"
       },
       "event": [
         {
@@ -155,16 +155,37 @@
       "event": [
         {
           "listen": "test",
-          "script": [
-            "pm.test(\"Status code is 200\", function () {",
-            "    pm.response.to.have.status(200);",
-            "});"
-          ]
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
         }
       ]
     },
     {
-      "name": "7. Delete own comment",
+      "name": "7. Get comment by id",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8080/users/{{userId}}/comments/{{commentId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Delete own comment",
       "request": {
         "method": "DELETE",
         "url": "http://localhost:8080/users/{{userId}}/comments/{{commentId}}"
@@ -183,7 +204,7 @@
       ]
     },
     {
-      "name": "8. Create comment for admin delete",
+      "name": "9. Create comment for admin delete",
       "request": {
         "method": "POST",
         "header": [
@@ -196,7 +217,7 @@
           "mode": "raw",
           "raw": "{\n    \"text\": \"Комментарий для администратора\"\n}"
         },
-        "url": "http://localhost:8080/users/{{userId}}/events/{{eventId}}/comments"
+        "url": "http://localhost:8080/users/{{userId}}/comments/events/{{eventId}}"
       },
       "event": [
         {
@@ -214,7 +235,7 @@
       ]
     },
     {
-      "name": "9. Admin delete comment",
+      "name": "10. Admin delete comment",
       "request": {
         "method": "DELETE",
         "url": "http://localhost:8080/admin/comments/{{adminCommentId}}"

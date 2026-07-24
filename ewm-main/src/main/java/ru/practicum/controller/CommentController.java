@@ -14,12 +14,13 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 @Slf4j
+@RequestMapping("/users/{userId}/comments")
 public class CommentController {
 
     private final CommentService commentService;
 
 
-    @PostMapping("/users/{userId}/events/{eventId}/comments")
+    @PostMapping("/events/{eventId}")
     @ResponseStatus(HttpStatus.CREATED)
     public CommentDto addComment(
             @PathVariable Long userId,
@@ -36,17 +37,18 @@ public class CommentController {
     }
 
 
-    @GetMapping("/events/{eventId}/comments")
+    @GetMapping("/events/{eventId}")
     public List<CommentDto> getEventComments(
+            @PathVariable Long userId,
             @PathVariable Long eventId) {
 
-        log.info("Get comments for event {}", eventId);
+        log.info("Get comments for event {} by user {}", eventId, userId);
 
         return commentService.getEventComments(eventId);
     }
 
 
-    @GetMapping("/users/{userId}/comments")
+    @GetMapping
     public List<CommentDto> getUserComments(
             @PathVariable Long userId) {
 
@@ -56,7 +58,18 @@ public class CommentController {
     }
 
 
-    @DeleteMapping("/users/{userId}/comments/{commentId}")
+    @GetMapping("/{commentId}")
+    public CommentDto getComment(
+            @PathVariable Long userId,
+            @PathVariable Long commentId) {
+
+        log.info("Get comment {} by user {}", commentId, userId);
+
+        return commentService.getComment(commentId);
+    }
+
+
+    @DeleteMapping("/{commentId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteComment(
             @PathVariable Long userId,

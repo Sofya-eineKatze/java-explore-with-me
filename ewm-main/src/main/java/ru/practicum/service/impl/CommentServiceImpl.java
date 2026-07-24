@@ -29,15 +29,10 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class CommentServiceImpl implements CommentService {
 
-
     private final CommentRepository commentRepository;
-
     private final EventRepository eventRepository;
-
     private final UserRepository userRepository;
-
     private final CommentMapper commentMapper;
-
 
 
     @Override
@@ -51,50 +46,36 @@ public class CommentServiceImpl implements CommentService {
 
         Event event = getEventEntity(eventId);
 
-
         if (!EventState.PUBLISHED.equals(event.getState())) {
-
             throw new ConflictException(
                     "Cannot comment unpublished event"
             );
         }
 
-
-        LocalDateTime now = LocalDateTime.now()
-                .withNano(
-                        (LocalDateTime.now().getNano() / 1000) * 1000
-                );
-
-
         Comment comment = Comment.builder()
                 .text(dto.getText())
-                .created(now)
+                .created(LocalDateTime.now())
                 .author(user)
                 .event(event)
                 .build();
 
-
         comment = commentRepository.save(comment);
 
-
         log.info(
-                "Added comment with id: {} for event: {}",
+                "Added comment {} by user {} for event {}",
                 comment.getId(),
+                userId,
                 eventId
         );
-
 
         return commentMapper.toDto(comment);
     }
 
 
-
     @Override
     public List<CommentDto> getEventComments(Long eventId) {
 
-
         getEventEntity(eventId);
-
 
         return commentRepository
                 .findByEventIdOrderByCreatedAsc(eventId)
@@ -104,13 +85,10 @@ public class CommentServiceImpl implements CommentService {
     }
 
 
-
     @Override
     public List<CommentDto> getUserComments(Long userId) {
 
-
         getUserEntity(userId);
-
 
         return commentRepository
                 .findByAuthorIdOrderByCreatedAsc(userId)
@@ -120,6 +98,14 @@ public class CommentServiceImpl implements CommentService {
     }
 
 
+    @Override
+    public CommentDto getComment(Long commentId) {
+
+        Comment comment = getCommentEntity(commentId);
+
+        return commentMapper.toDto(comment);
+    }
+
 
     @Override
     @Transactional
@@ -127,23 +113,18 @@ public class CommentServiceImpl implements CommentService {
             Long userId,
             Long commentId) {
 
-
         Comment comment = getCommentEntity(commentId);
-
 
         if (!comment.getAuthor()
                 .getId()
                 .equals(userId)) {
-
 
             throw new ConflictException(
                     "You cannot delete this comment"
             );
         }
 
-
         commentRepository.delete(comment);
-
 
         log.info(
                 "Deleted comment {} by user {}",
@@ -153,24 +134,19 @@ public class CommentServiceImpl implements CommentService {
     }
 
 
-
     @Override
     @Transactional
     public void deleteAdminComment(Long commentId) {
 
-
         Comment comment = getCommentEntity(commentId);
 
-
         commentRepository.delete(comment);
-
 
         log.info(
                 "Admin deleted comment {}",
                 commentId
         );
     }
-
 
 
     private User getUserEntity(Long userId) {
@@ -183,7 +159,6 @@ public class CommentServiceImpl implements CommentService {
     }
 
 
-
     private Event getEventEntity(Long eventId) {
 
         return eventRepository.findById(eventId)
@@ -192,7 +167,6 @@ public class CommentServiceImpl implements CommentService {
                                 "Event not found with id: " + eventId
                         ));
     }
-
 
 
     private Comment getCommentEntity(Long commentId) {
