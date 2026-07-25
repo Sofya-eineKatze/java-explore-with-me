@@ -1,0 +1,275 @@
+{
+  "info": {
+    "name": "EWM Comments Feature",
+    "description": "Tests for comments additional functionality",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Create user for comments",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"name\": \"Comment User\",\n    \"email\": \"comment{{$timestamp}}@test.com\"\n}"
+        },
+        "url": "http://localhost:8080/admin/users"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 201\", function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "",
+              "pm.collectionVariables.set(\"userId\", pm.response.json().id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Create event for comments",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"Comment event\",\n  \"annotation\": \"Событие для проверки комментариев\",\n  \"description\": \"Описание события для проверки дополнительной функциональности комментариев\",\n  \"eventDate\": \"2027-01-01 15:00:00\",\n  \"category\": 1,\n  \"location\": {\n    \"lat\": 55.7558,\n    \"lon\": 37.6173\n  },\n  \"paid\": false,\n  \"participantLimit\": 0,\n  \"requestModeration\": false\n}"
+        },
+        "url": "http://localhost:8080/users/{{userId}}/events"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 201\", function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "",
+              "pm.collectionVariables.set(\"eventId\", pm.response.json().id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Publish event",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"stateAction\": \"PUBLISH_EVENT\"\n}"
+        },
+        "url": "http://localhost:8080/admin/events/{{eventId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Create comment",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"text\": \"Отличное мероприятие, мне очень понравилось\"\n}"
+        },
+        "url": "http://localhost:8080/users/{{userId}}/comments/events/{{eventId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 201\", function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "",
+              "pm.collectionVariables.set(\"commentId\", pm.response.json().id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Get event comments",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8080/users/{{userId}}/comments/events/{{eventId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Get user comments",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8080/users/{{userId}}/comments"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Get comment by id",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8080/users/{{userId}}/comments/{{commentId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Delete own comment",
+      "request": {
+        "method": "DELETE",
+        "url": "http://localhost:8080/users/{{userId}}/comments/{{commentId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 204\", function () {",
+              "    pm.response.to.have.status(204);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Create comment for admin delete",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"text\": \"Комментарий для администратора\"\n}"
+        },
+        "url": "http://localhost:8080/users/{{userId}}/comments/events/{{eventId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 201\", function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "",
+              "pm.collectionVariables.set(\"adminCommentId\", pm.response.json().id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Admin delete comment",
+      "request": {
+        "method": "DELETE",
+        "url": "http://localhost:8080/admin/comments/{{adminCommentId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 204\", function () {",
+              "    pm.response.to.have.status(204);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "userId",
+      "value": ""
+    },
+    {
+      "key": "eventId",
+      "value": ""
+    },
+    {
+      "key": "commentId",
+      "value": ""
+    },
+    {
+      "key": "adminCommentId",
+      "value": ""
+    }
+  ]
+}

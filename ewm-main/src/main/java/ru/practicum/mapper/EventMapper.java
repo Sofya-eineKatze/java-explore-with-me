@@ -1,19 +1,23 @@
 package ru.practicum.mapper;
 
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import ru.practicum.dto.*;
+import ru.practicum.model.Category;
 import ru.practicum.model.Event;
+import ru.practicum.model.User;
 import ru.practicum.model.enums.EventState;
 
+import java.time.LocalDateTime;
+
 @Component
-@RequiredArgsConstructor
 public class EventMapper {
 
-    private final CategoryMapper categoryMapper;
-    private final UserMapper userMapper;
 
-    public EventShortDto toShortDto(Event event, Long confirmedRequests, Long views) {
+    public EventShortDto toShortDto(
+            Event event,
+            Long confirmedRequests,
+            Long views) {
+
         if (event == null) {
             return null;
         }
@@ -21,17 +25,28 @@ public class EventMapper {
         return EventShortDto.builder()
                 .id(event.getId())
                 .annotation(event.getAnnotation())
-                .category(categoryMapper.toDto(event.getCategory()))
+                .category(CategoryDto.builder()
+                        .id(event.getCategory().getId())
+                        .name(event.getCategory().getName())
+                        .build())
                 .confirmedRequests(confirmedRequests)
                 .eventDate(event.getEventDate())
-                .initiator(userMapper.toShortDto(event.getInitiator()))
+                .initiator(UserShortDto.builder()
+                        .id(event.getInitiator().getId())
+                        .name(event.getInitiator().getName())
+                        .build())
                 .paid(event.getPaid())
                 .title(event.getTitle())
                 .views(views)
                 .build();
     }
 
-    public EventFullDto toFullDto(Event event, Long confirmedRequests, Long views) {
+
+    public EventFullDto toFullDto(
+            Event event,
+            Long confirmedRequests,
+            Long views) {
+
         if (event == null) {
             return null;
         }
@@ -39,12 +54,18 @@ public class EventMapper {
         return EventFullDto.builder()
                 .id(event.getId())
                 .annotation(event.getAnnotation())
-                .category(categoryMapper.toDto(event.getCategory()))
+                .category(CategoryDto.builder()
+                        .id(event.getCategory().getId())
+                        .name(event.getCategory().getName())
+                        .build())
                 .confirmedRequests(confirmedRequests)
                 .createdOn(event.getCreatedOn())
                 .description(event.getDescription())
                 .eventDate(event.getEventDate())
-                .initiator(userMapper.toShortDto(event.getInitiator()))
+                .initiator(UserShortDto.builder()
+                        .id(event.getInitiator().getId())
+                        .name(event.getInitiator().getName())
+                        .build())
                 .location(LocationDto.builder()
                         .lat(event.getLat())
                         .lon(event.getLon())
@@ -53,18 +74,26 @@ public class EventMapper {
                 .participantLimit(event.getParticipantLimit())
                 .publishedOn(event.getPublishedOn())
                 .requestModeration(event.getRequestModeration())
-                .state(event.getState() != null ? event.getState().name() : null)
+                .state(event.getState() != null
+                        ? event.getState().name()
+                        : null)
                 .title(event.getTitle())
                 .views(views)
                 .build();
     }
 
-    public Event toEntity(NewEventDto dto, ru.practicum.model.User user, ru.practicum.model.Category category) {
+
+    public Event toEntity(
+            NewEventDto dto,
+            User user,
+            Category category) {
+
         if (dto == null) {
             return null;
         }
 
-        return ru.practicum.model.Event.builder()
+
+        return Event.builder()
                 .annotation(dto.getAnnotation())
                 .description(dto.getDescription())
                 .title(dto.getTitle())
@@ -73,11 +102,17 @@ public class EventMapper {
                 .initiator(user)
                 .lat(dto.getLocation().getLat())
                 .lon(dto.getLocation().getLon())
-                .paid(dto.getPaid() != null ? dto.getPaid() : false)
-                .participantLimit(dto.getParticipantLimit() != null ? dto.getParticipantLimit() : 0)
-                .requestModeration(dto.getRequestModeration() != null ? dto.getRequestModeration() : true)
+                .paid(dto.getPaid() != null
+                        ? dto.getPaid()
+                        : false)
+                .participantLimit(dto.getParticipantLimit() != null
+                        ? dto.getParticipantLimit()
+                        : 0)
+                .requestModeration(dto.getRequestModeration() != null
+                        ? dto.getRequestModeration()
+                        : true)
                 .state(EventState.PENDING)
-                .createdOn(java.time.LocalDateTime.now())
+                .createdOn(LocalDateTime.now())
                 .build();
     }
 }
